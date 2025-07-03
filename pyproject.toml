@@ -18,8 +18,8 @@ dependencies = [
     "pylint (>=3.3.7,<4.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)"
 ]
-[tool.poetry]
-package-mode = false
+[tool.poetry-pyinstaller-plugin.scripts]
+hello-world = "main.pyw"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

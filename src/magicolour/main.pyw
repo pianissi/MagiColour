@@ -70,6 +70,7 @@ def on_press(key, injected):
         if (key == keyboard.KeyCode.from_char(HOTKEY) and
             (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT")):
             Bridge.instance.windowToggle(True)
+            Bridge.instance.hotkeyReady = False
     except AttributeError:
         pass
 
@@ -78,7 +79,9 @@ def on_release(key, injected):
         if key == keyboard.KeyCode.from_char(HOTKEY):
             Bridge.instance.hotkeyReady = True
             if Bridge.instance.isSelecting:
-                Bridge.instance.selectToggle(False)
+                sleep(0.01)
+                ahk.send_input('{LButton up}')
+                # Bridge.instance.selectToggle(False)
                 return
             Bridge.instance.windowToggle(False)
     except AttributeError:
@@ -125,7 +128,6 @@ class Bridge(QObject):
     # Event Loop
     # pylint: disable-next=invalid-name
     def updateWatchedColour(self):
-        # print(self.map)
         if not (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT"):
             return
         if not self.isWatchingPixel:
@@ -185,7 +187,6 @@ class Bridge(QObject):
     @Slot(result=QPoint)
     # pylint: disable-next=invalid-name
     def getCursorPos(self):
-        # print(QCursor.pos())
         return QCursor.pos()
     
     @Slot(QPoint)
@@ -232,7 +233,7 @@ class Bridge(QObject):
             self.startedOffset.emit(self.transformFloatToInt(s), self.transformFloatToInt(v))
             self.startedPos.emit(self.mousePos.x, self.mousePos.y)
             self.visible = True
-            self.hotkeyReady = False
+            
             self.isSelecting = False
         else:
             self.setVisibility.emit(False)
@@ -265,9 +266,9 @@ class Bridge(QObject):
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
-    qml_file = Path(__file__).resolve().parent / "main.qml"
 
-    engine.addImportPath(Path(__file__).resolve().parent)
+    print(Path(__file__).resolve().parent)
+    engine.addImportPath(Path(__file__).resolve().parent.parent.parent / 'resources' / 'qml')
     engine.loadFromModule("MagiColour", "ColourCube")
     if not engine.rootObjects():
         sys.exit(-1)

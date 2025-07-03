@@ -85,7 +85,7 @@ ApplicationWindow {
     TapHandler {
         dragThreshold: 1
         gesturePolicy: TapHandler.DragWithinBounds
-        grabPermissions: PointerHandler.CanTakeOverFromAnything
+        grabPermissions: PointerHandler.CanTakeOverFromItems | PointerHandler.CanTakeOverFromHandlersOfDifferentType | PointerHandler.ApprovesTakeOverByAnything | PointerHandler.ApprovesCancellation
         onGrabChanged: {
             switch (transition) {
                 case PointerDevice.GrabPassive:
@@ -94,6 +94,8 @@ ApplicationWindow {
                     break;
                 case PointerDevice.UngrabPassive:
                 case PointerDevice.UngrabExclusive:
+                case PointerDevice.CancelGrabPassive:
+                case PointerDevice.CancelGrabExclusive:
                     bridge.toggleSelect(false);
                     break;
                 default:
