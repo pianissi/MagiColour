@@ -1,19 +1,20 @@
 """Module providing a function printing python version."""
 # This Python file uses the following encoding: utf-8
 import sys
-import math
 from pathlib import Path
 from time import sleep
-
+import colorsys
 import pyautogui
 
-from PySide6.QtCore import QObject, Signal, Slot, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QObject, Signal, Slot, QTimer, QPoint
+from PySide6.QtGui import QGuiApplication, QCursor
 from PySide6.QtQml import QQmlApplicationEngine, QmlElement
 
-from pynput import keyboard
+from pynput import keyboard, mouse
 import pywinctl
 from ahk import AHK
+
+import yaml
 
 import rc_style
 
@@ -23,14 +24,50 @@ ahk = AHK(executable_path="C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey.exe")
 QML_IMPORT_NAME = "io.qt.textproperties"
 QML_IMPORT_MAJOR_VERSION = 1
 
-REFRESH_RATE = 60.0
-HOTKEY = "/"
+# import our config
+with open('config.yml', 'r') as file:
+    config = yaml.safe_load(file)
+
+REFRESH_RATE = config.get("refresh_rate", 60.0)
+COLOUR_REFRESH_RATE = config.get("colour_refresh_rate", 10.0)
+WINDOW_DELAY = config.get("window_delay", 0.08)
+HOTKEY = config.get("hotkey", "/")
+WATCH_COLOUR_ON_START = config.get("watch_colour_on_start", False)
+WATCHED_PIXEL_X = config.get("watched_pixel_x", 0)
+WATCHED_PIXEL_Y = config.get("watched_pixel_y", 0)
+
+running_config = {
+    "refresh_rate": REFRESH_RATE,
+    "colour_refresh_rate": COLOUR_REFRESH_RATE,
+    "window_delay": WINDOW_DELAY,
+    "hotkey": HOTKEY,
+    "watched_pixel_x": WATCHED_PIXEL_X,
+    "watched_pixel_y": WATCHED_PIXEL_Y
+}
+
+if not config.get("watch_colour_on_start"):
+    running_config["watch_colour_on_start"] = True
+else:
+    running_config["watch_colour_on_start"] = WATCH_COLOUR_ON_START
+
+
+def save_config(config):
+    with open('config.yml', 'w') as file:
+        yaml.dump(config, file)
+
+save_config(running_config)
+
+def on_click(x, y, button, pressed, injected):
+    if Bridge.instance.isSelectingWatchedPixel:
+        if pressed:
+            Bridge.instance.setWatchedPixel()
+            Bridge.instance.isSelectingWatchedPixel = False
 
 def on_press(key, injected):
     try:
         if not Bridge.instance.hotkeyReady:
             return
-        if (key == keyboard.KeyCode.from_char(HOTKEY) and 
+        if (key == keyboard.KeyCode.from_char(HOTKEY) and
             (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT")):
             Bridge.instance.windowToggle(True)
     except AttributeError:
@@ -41,7 +78,7 @@ def on_release(key, injected):
         if key == keyboard.KeyCode.from_char(HOTKEY):
             Bridge.instance.hotkeyReady = True
             if Bridge.instance.isSelecting:
-                Bridge.instance.selectToggle(True)
+                Bridge.instance.selectToggle(False)
                 return
             Bridge.instance.windowToggle(False)
     except AttributeError:
@@ -53,6 +90,7 @@ class Bridge(QObject):
     updatedPos = Signal(int, int, arguments=['x', 'y'])
 
     startedPos = Signal(int, int)
+    startedOffset = Signal(int, int)
     setVisibility = Signal(bool)
 
     instance = None
@@ -62,12 +100,16 @@ class Bridge(QObject):
         Bridge.instance = self
         self.mousePos = pyautogui.position()
         self.isSelecting = False
-
         self.settingValues = False
-
         self.visible = False
         self.readyToPick = False
         self.hotkeyReady = True
+        # self.cursor = QCursor()
+
+        self.watchedPixel = (WATCHED_PIXEL_X, WATCHED_PIXEL_Y)
+        self.curColour = (1.0, 1.0, 1.0)
+        self.isSelectingWatchedPixel = False
+        self.isWatchingPixel = WATCH_COLOUR_ON_START
         
         # Event Loop
         self.timer = QTimer()
@@ -75,24 +117,51 @@ class Bridge(QObject):
         self.timer.timeout.connect(self.updateVariables)
         self.timer.start()
 
+        self.colourTimer = QTimer()
+        self.colourTimer.setInterval(1000 / COLOUR_REFRESH_RATE)  # msecs 100 = 1/10th sec
+        self.colourTimer.timeout.connect(self.updateWatchedColour)
+        self.colourTimer.start()
+
     # Event Loop
     # pylint: disable-next=invalid-name
+    def updateWatchedColour(self):
+        # print(self.map)
+        if not (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT"):
+            return
+        if not self.isWatchingPixel:
+            return
+        if self.visible:
+            return
+        self.getWatchedColour()
+
     def updateVariables(self):
         if self.readyToPick:
             self.readyToPick = False
             self.settingValues = True
             self.getColour()
-            sleep(0.10)
+            sleep(WINDOW_DELAY)
             self.settingValues = False
-            self.setVisibility.emit(False)
+            self.windowToggle(False)
             return
         
         if not self.settingValues:
-            hueOffset = max(0, min(1, math.modf(pyautogui.position().x / 256)[0]))
             curMousePos = pyautogui.position()
+            mouseHueOffset = (curMousePos.x - self.mousePos.x) / 256
+            
+            # if self.isWatchingPixel:
+            h,s,v = self.getHSV()
+            hueOffset = h + mouseHueOffset
+            
             self.updatedHue.emit(hueOffset)
             self.updatedPos.emit(curMousePos.x - self.mousePos.x, curMousePos.y - self.mousePos.y)
-        
+
+    def getHSV(self):
+        r, g, b = self.curColour
+        return colorsys.rgb_to_hsv(r, g, b)
+
+    def transformFloatToInt(self, value):
+        return int(value * 256) - 128
+
     @Slot(result=float)
     # pylint: disable-next=invalid-name
     def getHueOffset(self):
@@ -113,6 +182,18 @@ class Bridge(QObject):
     def isSelected(self):
         return self.isSelecting
     
+    @Slot(result=QPoint)
+    # pylint: disable-next=invalid-name
+    def getCursorPos(self):
+        # print(QCursor.pos())
+        return QCursor.pos()
+    
+    @Slot(QPoint)
+    # pylint: disable-next=invalid-name
+    def setCursorPos(self, point):
+        # print(QCursor.pos())
+        return QCursor.setPos(point)
+    
     @Slot(bool)
     # pylint: disable-next=invalid-name
     def toggleSelect(self, value):
@@ -126,16 +207,18 @@ class Bridge(QObject):
 
     # pylint: disable-next=invalid-name
     def selectToggle(self, value):
-        if self.visible and not value:
+        if not value:
             self.visible = False
             self.pickColour()
         self.isSelecting = value
 
     # pylint: disable-next=invalid-name
     def getColour(self):
+        temp_pos = ahk.mouse_position
         csp_window = ahk.find_window(title='CLIP STUDIO PAINT')
         csp_window.send('^+x')
         ahk.send_input('{LButton up}')
+        ahk.mouse_position = temp_pos
         ahk.send_input('{LButton down}')
         ahk.send_input('{LButton up}')
     
@@ -145,6 +228,8 @@ class Bridge(QObject):
             self.setVisibility.emit(True)
             sleep(0.004)
             self.mousePos = pyautogui.position()
+            h, s, v = self.getHSV()
+            self.startedOffset.emit(self.transformFloatToInt(s), self.transformFloatToInt(v))
             self.startedPos.emit(self.mousePos.x, self.mousePos.y)
             self.visible = True
             self.hotkeyReady = False
@@ -153,6 +238,27 @@ class Bridge(QObject):
             self.setVisibility.emit(False)
             self.visible = False
             self.isSelecting = False
+    
+    @Slot()
+    def startWatchPixel(self):
+        self.isSelectingWatchedPixel = True
+
+    @Slot()
+    def stopWatchPixel(self):
+        self.isWatchingPixel = False
+
+    def setWatchedPixel(self):
+        x, y = pyautogui.position()
+        self.watchedPixel = (x, y)
+        self.isWatchingPixel = True
+        running_config["watched_pixel_x"] = x
+        running_config["watched_pixel_y"] = y
+        save_config(running_config)
+
+    def getWatchedColour(self):
+        
+        r,g,b = pyautogui.pixel(self.watchedPixel[0], self.watchedPixel[1])
+        self.curColour = (float(r) / 256, float(g) / 256, float(b) / 256)
 
 # pylint: enable=invalid-name
 
@@ -166,6 +272,11 @@ if __name__ == "__main__":
     if not engine.rootObjects():
         sys.exit(-1)
     
+    mouse_listener = mouse.Listener(
+        on_click=on_click
+    )
+    mouse_listener.start()
+
     keyboard_listener = keyboard.Listener(
         on_press=on_press,
         on_release=on_release

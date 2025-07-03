@@ -2,13 +2,12 @@
 layout(location = 0) in vec2 coord;
 layout(location = 0) out vec4 fragColor;
 
+// heavily based off: https://www.ronja-tutorials.com/post/041-hsv-colorspace/
 layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
 		float hueOffset;
 };
-// layout(binding = 1) uniform sampler2D src;
-// uniform float hueOffset;
 
 vec3 hue2rgb(float hue) {
 		hue = fract(hue); //only use fractional part of hue, making it loop,
@@ -27,10 +26,6 @@ vec3 hsv2rgb(vec3 hsv) {
 }
 
 void main() {
-    // vec4 tex = texture(src, coord);
-    // fragColor = vec4(vec3(dot(tex.rgb, vec3(0.344, 0.5, 0.156))), tex.a) * qt_Opacity;
-
-		// vec2 uv = coord / iResolution.xy;
 		vec2 uv = coord;
 		fragColor = vec4(hue2rgb(uv.x + hueOffset + 0.5), 1.0);
 }

@@ -29,6 +29,9 @@ ApplicationWindow {
     }
     property real xOffset: width / 2 - 128
     property real yOffset: height / 2 - 128
+
+    property real xStartOffset: 0
+    property real yStartOffset: 0
     property real stripPos: -50
     Connections {
         target: bridge
@@ -36,29 +39,35 @@ ApplicationWindow {
             if (!bridge.isSelected()) { 
                 root.hueOffset = hueOffset;
             }
-            // root.visible = true;
         }
-
         function onUpdatedPos(x, y) {
-            // root.xOffset = root.width / 2 - 128 + x;
             if (!bridge.isSelected()) {
-                root.x = bridge.getStartX() - 256 + x;
-                circlePicker.x = 256 - circlePicker.radius;
+                root.x = bridge.getStartX() - 256 + x - root.xStartOffset;
+                circlePicker.x = 256 - circlePicker.radius + root.xStartOffset;
             } else {
                 let tempX = root.x - bridge.getStartX() + 256;
                 circlePicker.x = 256 - circlePicker.radius + x - tempX;
+                // bound our cursor
+                const pos = colorCube.mapFromGlobal(bridge.getCursorPos());
+                const newPosX = Math.max(0, Math.min(255, pos.x));
+                const newPosY = Math.max(0, Math.min(255, pos.y));
+                bridge.setCursorPos(colorCube.mapToGlobal(newPosX, newPosY));
             }
-            circlePicker.y = 256 - circlePicker.radius + y;
+            circlePicker.y = 256 - circlePicker.radius + y - root.yStartOffset;
+        }
+
+        function onStartedOffset(x, y) {
+            root.xStartOffset = x;
+            root.yStartOffset = y;
         }
         
         function onStartedPos(x, y) {
-            // console.log(x);
             root.width = 512
             root.height = 512
-            root.x = bridge.getStartX() - 256;
-            root.y = bridge.getStartY() - 256;
-            circlePicker.x = 256 - circlePicker.radius;
-            circlePicker.y = 256 - circlePicker.radius;
+            root.x = bridge.getStartX() - 256 - root.xStartOffset;
+            root.y = bridge.getStartY() - 256 + root.yStartOffset;
+            circlePicker.x = 256 - circlePicker.radius + root.xStartOffset;
+            circlePicker.y = 256 - circlePicker.radius - root.yStartOffset;
 
             if (root.y < 100) {
                 root.stripPos = 256 + 50;
@@ -68,7 +77,6 @@ ApplicationWindow {
         }
 
         function onSetVisibility(visibility) {
-            // console.log("change")
             root.visible = visibility
             root.width = 512
             root.height = 512
@@ -76,17 +84,16 @@ ApplicationWindow {
     }
     TapHandler {
         dragThreshold: 1
+        gesturePolicy: TapHandler.DragWithinBounds
+        grabPermissions: PointerHandler.CanTakeOverFromAnything
         onGrabChanged: {
-            console.log("transition");
-            console.log(transition);
             switch (transition) {
                 case PointerDevice.GrabPassive:
-                    console.log("grabbing");
+                case PointerDevice.GrabExclusive:
                     bridge.toggleSelect(true);
                     break;
                 case PointerDevice.UngrabPassive:
-                    console.log("ungrab");
-                    // bridge.pickColour();
+                case PointerDevice.UngrabExclusive:
                     bridge.toggleSelect(false);
                     break;
                 default:
@@ -106,11 +113,6 @@ ApplicationWindow {
             width: 256; height: 20
             // property variant source: sourceImage
             property real hueOffset: root.hueOffset
-            // visible: root.step>3
-            // NumberAnimation on hueOffset {
-            //     from: 0.0; to: 1.0; loops: Animation.Infinite; duration: 4000
-            // }
-
             fragmentShader: "HueEffect.frag.qsb"
         }
     }
@@ -126,14 +128,11 @@ ApplicationWindow {
             width: 256; height: width
             // property variant source: sourceImage
             property real hueOffset: root.hueOffset
-            // visible: root.step>3
-            // NumberAnimation on hueOffset {
-            //     from: 0.0; to: 1.0; loops: Animation.Infinite; duration: 4000
-            // }
 
             fragmentShader: "CubeEffect.frag.qsb"
         }
     }
+    
     Rectangle {
         x: root.xOffset + 128 - 20
         y: root.yOffset + root.stripPos - 10
@@ -161,10 +160,22 @@ ApplicationWindow {
         visible: true
         icon.source: "qrc:/assets/systray-icon.png"
         menu: Menu {
+            id: menu
             MenuItem {
                 text: qsTr("Quit")
                 onTriggered: Qt.quit()
             }
+            MenuSeparator {
+            }
+            MenuItem {
+                text: qsTr("Select Watched Pixel")
+                onTriggered: bridge.startWatchPixel()
+            }
+            MenuItem {
+                text: qsTr("Stop Watching Pixel")
+                onTriggered: bridge.stopWatchPixel()
+            }
+            
         }
     }
 }
