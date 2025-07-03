@@ -1,7 +1,7 @@
-colour_refresh_rate: 10
+colour_refresh_rate: 10.0
 hotkey: /
-refresh_rate: 60
+refresh_rate: 60.0
 watch_colour_on_start: true
-watched_pixel_x: 2657
-watched_pixel_y: 2085
+watched_pixel_x: 0
+watched_pixel_y: 0
 window_delay: 0.08

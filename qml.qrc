@@ -1,0 +1,8 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/">
+    <file>resources/qml/MagiColour/qmldir</file>
+    <file>resources/qml/MagiColour/ColourCube.qml</file>
+    <file>resources/qml/MagiColour/CubeEffect.frag.qsb</file>
+    <file>resources/qml/MagiColour/HueEffect.frag.qsb</file>
+</qresource>
+</RCC>

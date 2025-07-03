@@ -16,17 +16,20 @@ from ahk import AHK
 
 import yaml
 
-import rc_style
-
 
 ahk = AHK(executable_path="C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey.exe")
 
 QML_IMPORT_NAME = "io.qt.textproperties"
 QML_IMPORT_MAJOR_VERSION = 1
 
+with open('config.yml', 'a') as file:
+    pass
 # import our config
 with open('config.yml', 'r') as file:
     config = yaml.safe_load(file)
+
+if not config:
+    config = {}
 
 REFRESH_RATE = config.get("refresh_rate", 60.0)
 COLOUR_REFRESH_RATE = config.get("colour_refresh_rate", 10.0)
@@ -263,12 +266,11 @@ class Bridge(QObject):
 
 # pylint: enable=invalid-name
 
-if __name__ == "__main__":
+def start():
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
-    print(Path(__file__).resolve().parent)
-    engine.addImportPath(Path(__file__).resolve().parent.parent.parent / 'resources' / 'qml')
+    engine.addImportPath("qrc:///resources/qml")
     engine.loadFromModule("MagiColour", "ColourCube")
     if not engine.rootObjects():
         sys.exit(-1)
