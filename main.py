@@ -268,7 +268,7 @@ if __name__ == "__main__":
     qml_file = Path(__file__).resolve().parent / "main.qml"
 
     engine.addImportPath(Path(__file__).resolve().parent)
-    engine.loadFromModule("App", "Main")
+    engine.loadFromModule("MagiColour", "ColourCube")
     if not engine.rootObjects():
         sys.exit(-1)
     
