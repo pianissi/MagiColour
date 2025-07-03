@@ -18,7 +18,7 @@ import yaml
 
 
 ahk = AHK(executable_path="C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey.exe")
-
+ahk.set_coord_mode("Mouse", "Screen")
 QML_IMPORT_NAME = "io.qt.textproperties"
 QML_IMPORT_MAJOR_VERSION = 1
 
@@ -38,6 +38,7 @@ HOTKEY = config.get("hotkey", "/")
 WATCH_COLOUR_ON_START = config.get("watch_colour_on_start", False)
 WATCHED_PIXEL_X = config.get("watched_pixel_x", 0)
 WATCHED_PIXEL_Y = config.get("watched_pixel_y", 0)
+DISABLE_PICK_ON_RELEASE = config.get("disable_pick_on_release", True)
 
 running_config = {
     "refresh_rate": REFRESH_RATE,
@@ -45,7 +46,8 @@ running_config = {
     "window_delay": WINDOW_DELAY,
     "hotkey": HOTKEY,
     "watched_pixel_x": WATCHED_PIXEL_X,
-    "watched_pixel_y": WATCHED_PIXEL_Y
+    "watched_pixel_y": WATCHED_PIXEL_Y,
+    "disable_pick_on_release": DISABLE_PICK_ON_RELEASE,
 }
 
 if not config.get("watch_colour_on_start"):
@@ -83,8 +85,11 @@ def on_release(key, injected):
             Bridge.instance.hotkeyReady = True
             if Bridge.instance.isSelecting:
                 sleep(0.01)
-                ahk.send_input('{LButton up}')
-                # Bridge.instance.selectToggle(False)
+                if DISABLE_PICK_ON_RELEASE:
+                    Bridge.instance.selectToggle(False)
+                else:
+                    ahk.send_input('{LButton up}')
+                
                 return
             Bridge.instance.windowToggle(False)
     except AttributeError:
@@ -110,6 +115,7 @@ class Bridge(QObject):
         self.visible = False
         self.readyToPick = False
         self.hotkeyReady = True
+        self.locationToPick = (0, 0)
         # self.cursor = QCursor()
 
         self.watchedPixel = (WATCHED_PIXEL_X, WATCHED_PIXEL_Y)
@@ -187,6 +193,11 @@ class Bridge(QObject):
     def isSelected(self):
         return self.isSelecting
     
+    @Slot(result=bool)
+    # pylint: disable-next=invalid-name
+    def isPickOnReleaseDisabled(self):
+        return DISABLE_PICK_ON_RELEASE
+
     @Slot(result=QPoint)
     # pylint: disable-next=invalid-name
     def getCursorPos(self):
@@ -195,7 +206,8 @@ class Bridge(QObject):
     @Slot(QPoint)
     # pylint: disable-next=invalid-name
     def setCursorPos(self, point):
-        # print(QCursor.pos())
+        tempPos = ahk.mouse_position
+        self.locationToPick = tempPos
         return QCursor.setPos(point)
     
     @Slot(bool)
@@ -218,13 +230,18 @@ class Bridge(QObject):
 
     # pylint: disable-next=invalid-name
     def getColour(self):
-        temp_pos = ahk.mouse_position
+        # temp_pos = ahk.mouse_position
         csp_window = ahk.find_window(title='CLIP STUDIO PAINT')
         csp_window.send('^+x')
         ahk.send_input('{LButton up}')
-        ahk.mouse_position = temp_pos
-        ahk.send_input('{LButton down}')
-        ahk.send_input('{LButton up}')
+        # ahk.send_input('{LButton up}')
+        # makes sure it's clamped
+        if DISABLE_PICK_ON_RELEASE:
+            ahk.click(self.locationToPick)
+        else:
+            ahk.mouse_position = self.locationToPick
+            ahk.send_input('{LButton down}')
+            ahk.send_input('{LButton up}')
     
     # pylint: disable-next=invalid-name
     def windowToggle(self, value):

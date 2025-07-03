@@ -49,8 +49,8 @@ ApplicationWindow {
                 circlePicker.x = 256 - circlePicker.radius + x - tempX;
                 // bound our cursor
                 const pos = colorCube.mapFromGlobal(bridge.getCursorPos());
-                const newPosX = Math.max(0, Math.min(255, pos.x));
-                const newPosY = Math.max(0, Math.min(255, pos.y));
+                const newPosX = Math.max(0 + 32, Math.min(255 + 32, pos.x));
+                const newPosY = Math.max(0 + 32, Math.min(255 + 32, pos.y));
                 bridge.setCursorPos(colorCube.mapToGlobal(newPosX, newPosY));
             }
             circlePicker.y = 256 - circlePicker.radius + y - root.yStartOffset;
@@ -70,9 +70,9 @@ ApplicationWindow {
             circlePicker.y = 256 - circlePicker.radius - root.yStartOffset;
 
             if (root.y < 100) {
-                root.stripPos = 256 + 50;
+                root.stripPos = 256 + 60;
             } else {
-                root.stripPos = -50;
+                root.stripPos = -60;
             }
         }
 
@@ -82,26 +82,18 @@ ApplicationWindow {
             root.height = 512
         }
     }
-    TapHandler {
-        dragThreshold: 1
-        gesturePolicy: TapHandler.DragWithinBounds
-        grabPermissions: PointerHandler.CanTakeOverFromItems | PointerHandler.CanTakeOverFromHandlersOfDifferentType | PointerHandler.ApprovesTakeOverByAnything | PointerHandler.ApprovesCancellation
-        onGrabChanged: {
-            switch (transition) {
-                case PointerDevice.GrabPassive:
-                case PointerDevice.GrabExclusive:
-                    bridge.toggleSelect(true);
-                    break;
-                case PointerDevice.UngrabPassive:
-                case PointerDevice.UngrabExclusive:
-                case PointerDevice.CancelGrabPassive:
-                case PointerDevice.CancelGrabExclusive:
-                    bridge.toggleSelect(false);
-                    break;
-                default:
-                    break;
-            }
+    MouseArea {
+        anchors.fill: parent
+        onPressed: {
+            console.log("pressed");
+            bridge.toggleSelect(true);
+        } 
+        onReleased: {
+            console.log("released");
+            if (!bridge.isPickOnReleaseDisabled())
+                bridge.toggleSelect(false);
         }
+        drag.threshold: 1
     }
     Rectangle {
         x: root.xOffset
@@ -119,15 +111,15 @@ ApplicationWindow {
         }
     }
     Rectangle {
-        x: root.xOffset
-        y: root.yOffset
+        x: root.xOffset - 32
+        y: root.yOffset - 32
         id: colorCube
-        width: 256
-        height: 256
+        width: 256 + 64
+        height: 256 + 64
         color: "red"
         ShaderEffect {
             id: effectCube
-            width: 256; height: width
+            width: 256 + 64; height: width
             // property variant source: sourceImage
             property real hueOffset: root.hueOffset
 

@@ -27,7 +27,8 @@ vec3 hsv2rgb(vec3 hsv) {
 }
 
 void main() {
-		vec2 uv = coord;
+		
+		vec2 uv = clamp((coord - 0.5) * 1.25 + (0.5), 0.0, 1.0);
 		vec3 hsv = vec3(hueOffset, uv.x, uv.y * -1 + 1);
 		fragColor = vec4(hsv2rgb(hsv), 1.0);
 }

@@ -1,6 +1,7 @@
 colour_refresh_rate: 10.0
+disable_pick_on_release: true
 hotkey: /
-refresh_rate: 60.0
+refresh_rate: 200.0
 watch_colour_on_start: true
 watched_pixel_x: 0
 watched_pixel_y: 0
