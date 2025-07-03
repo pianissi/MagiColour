@@ -1,142 +1,52 @@
+"""Module providing a function printing python version."""
 # This Python file uses the following encoding: utf-8
-import sys, os
-from pathlib import Path
-from PySide6.QtCore import *
-from PySide6.QtGui import *
-from PySide6.QtQml import *
-from PySide6.QtQuickControls2 import QQuickStyle
-import pyautogui
+import sys
 import math
-from pynput import mouse, keyboard
+from pathlib import Path
 from time import sleep
+
+import pyautogui
+
+from PySide6.QtCore import QObject, Signal, Slot, QTimer
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlApplicationEngine, QmlElement
+
+from pynput import keyboard
 import pywinctl
-import rc_style
 from ahk import AHK
+
+import rc_style
+
 
 ahk = AHK(executable_path="C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey.exe")
 
 QML_IMPORT_NAME = "io.qt.textproperties"
 QML_IMPORT_MAJOR_VERSION = 1
-# cspWindow = pyautogui.getWindowsWithTitle("CLIP STUDIO PAINT")[0]
-cspWindow = ahk.find_window(title='CLIP STUDIO PAINT')
-visible = False
-readyToPick = False
-hotkeyReady = True
 
-
-hotkey = "/"
-
-def select_toggle(value):
-    global visible
-    print("toggl")
-    print(value)
-    print(visible)
-    if visible and not value:
-        visible = False
-        pickColour()
-        # Bridge.instance.isSelecting = value
-        
-    Bridge.instance.isSelecting = value
-    
-    
-
-def on_click(x, y, button, pressed, injected):
-    pass
-    # global visible
-    # global readyToPick
-    # # print("clicked")
-    # if readyToPick:
-    #     return
-    # if button != mouse.Button.left:
-    #     return 
-    # if injected:
-    #     print("injected!")
-    #     return
-    # if (not pressed) and visible:
-    #     pass
-    #     # Bridge.instance.isSelecting = pressed
-    #     # visible = False
-    #     # readyToPick = True
-    
-    # select_toggle(pressed)
+REFRESH_RATE = 60.0
+HOTKEY = "/"
 
 def on_press(key, injected):
-    global visible
-    global hotkeyReady
     try:
-        # print('alphanumeric key {} pressed; it was {}'.format(
-        #     key.char, 'faked' if injected else 'not faked'))
-        if not hotkeyReady:
+        if not Bridge.instance.hotkeyReady:
             return
-        if key == keyboard.KeyCode.from_char(hotkey) and (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT"):
-            Bridge.instance.setVisibility.emit(True)
-            sleep(0.004)
-            Bridge.instance.mousePos = pyautogui.position()
-            Bridge.instance.startedPos.emit(Bridge.instance.mousePos.x, Bridge.instance.mousePos.y)
-            visible = True
-            print("visible")
-            hotkeyReady = False
-            Bridge.instance.isSelecting = False
-            # magiWindow = pyautogui.getWindowsWithTitle("MagiColour")[0]
-            # magiWindow.activate()
-            
-        # if key == keyboard.KeyCode.from_char(']'):
-        #     global readyToPick
-        #     readyToPick = True
+        if (key == keyboard.KeyCode.from_char(HOTKEY) and 
+            (pywinctl.getActiveWindowTitle() == "CLIP STUDIO PAINT")):
+            Bridge.instance.windowToggle(True)
     except AttributeError:
-        print('special key {} pressed'.format(
-            key))
+        pass
 
 def on_release(key, injected):
-    global visible
-    global hotkeyReady
     try:
-        # print('alphanumeric key {} pressed; it was {}'.format(
-        #     key.char, 'faked' if injected else 'not faked'))
-        if key == keyboard.KeyCode.from_char(hotkey):
-            hotkeyReady = True
+        if key == keyboard.KeyCode.from_char(HOTKEY):
+            Bridge.instance.hotkeyReady = True
             if Bridge.instance.isSelecting:
-                visible = False
-                pickColour()
+                Bridge.instance.selectToggle(True)
                 return
-            Bridge.instance.setVisibility.emit(False)
-            visible = False
-            
+            Bridge.instance.windowToggle(False)
     except AttributeError:
-        print('special key {} pressed'.format(
-            key))
-        
-def pickColour():
-    if Bridge.instance.isSelecting:
-        global readyToPick
-        readyToPick = True
-
-def getColour():
-    # pass
-    # pyautogui.PAUSE = 0.1
-    # curPos = pyautogui.position()
-
-    curPos = ahk.mouse_position
-    # cspWindow.activate()
-
-    cspWindow.send('^+x')
-    # sleep(0.1)
-    ahk.send_input('{LButton up}')
-    ahk.send_input('{LButton down}')
-    ahk.send_input('{LButton up}')
-    # ahk.click(curPos[0], curPos[1], click_count=2)
-    # sleep(0.10)
-    print("i'm printing")
-    # pyautogui.PAUSE = 0.05
-    # pyautogui.hotkey('ctrl', 'shift', 'x')
-    print("printed")
-    # magiWindow.activate()
-    # pyautogui.click(curPos.x, curPos.y, clicks=2)
-    # cspWindow.activate()
-    print("after")
-
-
-
+        pass
+# pylint: disable=invalid-name
 @QmlElement
 class Bridge(QObject):
     updatedHue = Signal(float, arguments=['hueOffset'])
@@ -151,94 +61,118 @@ class Bridge(QObject):
         super().__init__()
         Bridge.instance = self
         self.mousePos = pyautogui.position()
-        # Define timer.
         self.isSelecting = False
 
         self.settingValues = False
+
+        self.visible = False
+        self.readyToPick = False
+        self.hotkeyReady = True
         
-        
-        print(self.mousePos)
+        # Event Loop
         self.timer = QTimer()
-        self.timer.setInterval(16)  # msecs 100 = 1/10th sec
+        self.timer.setInterval(1000 / REFRESH_RATE)  # msecs 100 = 1/10th sec
         self.timer.timeout.connect(self.updateVariables)
         self.timer.start()
 
-        # self.setVisibility.emit(True);
-        # setup mouse
-
+    # Event Loop
+    # pylint: disable-next=invalid-name
     def updateVariables(self):
-        global readyToPick
-        if readyToPick:
-            readyToPick = False
+        if self.readyToPick:
+            self.readyToPick = False
             self.settingValues = True
-            getColour()
+            self.getColour()
             sleep(0.10)
             self.settingValues = False
             self.setVisibility.emit(False)
             return
-        
         
         if not self.settingValues:
             hueOffset = max(0, min(1, math.modf(pyautogui.position().x / 256)[0]))
             curMousePos = pyautogui.position()
             self.updatedHue.emit(hueOffset)
             self.updatedPos.emit(curMousePos.x - self.mousePos.x, curMousePos.y - self.mousePos.y)
-                # print(pywinctl.getActiveWindowTitle())
-                # self.startedPos.emit(self.mousePos.x, self.mousePos.y)
         
-
-
     @Slot(result=float)
+    # pylint: disable-next=invalid-name
     def getHueOffset(self):
         return max(0, min(1, (pyautogui.position().x / 1000)))
     
     @Slot(result=int)
+    # pylint: disable-next=invalid-name
     def getStartX(self):
         return self.mousePos.x
     
     @Slot(result=int)
+    # pylint: disable-next=invalid-name
     def getStartY(self):
         return self.mousePos.y
     
     @Slot(result=bool)
+    # pylint: disable-next=invalid-name
     def isSelected(self):
         return self.isSelecting
     
     @Slot(bool)
+    # pylint: disable-next=invalid-name
     def toggleSelect(self, value):
-        select_toggle(value)
+        self.selectToggle(value)
     
     @Slot()
+    # pylint: disable-next=invalid-name
     def pickColour(self):
-        pickColour()
+        if self.isSelecting:
+            self.readyToPick = True
 
+    # pylint: disable-next=invalid-name
+    def selectToggle(self, value):
+        if self.visible and not value:
+            self.visible = False
+            self.pickColour()
+        self.isSelecting = value
+
+    # pylint: disable-next=invalid-name
+    def getColour(self):
+        csp_window = ahk.find_window(title='CLIP STUDIO PAINT')
+        csp_window.send('^+x')
+        ahk.send_input('{LButton up}')
+        ahk.send_input('{LButton down}')
+        ahk.send_input('{LButton up}')
+    
+    # pylint: disable-next=invalid-name
+    def windowToggle(self, value):
+        if value:
+            self.setVisibility.emit(True)
+            sleep(0.004)
+            self.mousePos = pyautogui.position()
+            self.startedPos.emit(self.mousePos.x, self.mousePos.y)
+            self.visible = True
+            self.hotkeyReady = False
+            self.isSelecting = False
+        else:
+            self.setVisibility.emit(False)
+            self.visible = False
+            self.isSelecting = False
+
+# pylint: enable=invalid-name
 
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv)
-    # QQuickStyle.setStyle("Material")
     engine = QQmlApplicationEngine()
     qml_file = Path(__file__).resolve().parent / "main.qml"
-    # engine.load(qml_file)
-    # Add the current directory to the import paths and load the main module.
 
     engine.addImportPath(Path(__file__).resolve().parent)
     engine.loadFromModule("App", "Main")
     if not engine.rootObjects():
         sys.exit(-1)
-
-    mouseListener = mouse.Listener(
-        on_click=on_click)
-    mouseListener.start()
     
-    keyboardListener = keyboard.Listener(
+    keyboard_listener = keyboard.Listener(
         on_press=on_press,
         on_release=on_release
     )
-    keyboardListener.start()
+    keyboard_listener.start()
 
     exit_code = app.exec()
-    
-    
     
     del engine
     sys.exit(exit_code)

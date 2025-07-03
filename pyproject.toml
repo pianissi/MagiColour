@@ -1,5 +1,25 @@
 [project]
-name = "PySide QtQuick Project"
+name = "magicolour"
+version = "0.1.0"
+description = "One tap colour wheel"
+authors = [
+    {name = "pianissi",email = "132866503+pianissi@users.noreply.github.com"}
+]
+license = {text = "GPL"}
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "pyside6 (>=6.9.1,<7.0.0)",
+    "pyautogui (>=0.9.54,<0.10.0)",
+    "pynput (>=1.8.1,<2.0.0)",
+    "pywinctl (>=0.4.1,<0.5.0)",
+    "ahk (>=1.8.4,<2.0.0)",
+    "ahk-binary (>=2025.1.0,<2026.0.0)",
+    "pylint (>=3.3.7,<4.0.0)"
+]
+[tool.poetry]
+package-mode = false
 
-[tool.pyside6-project]
-files = ["main.py", "main.qml"]
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
